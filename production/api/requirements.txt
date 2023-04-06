@@ -1,2 +1,6 @@
 ./production/api/packages/mlopspython_inference-0.0.0-py3-none-any.whl
 ./production/api/packages/mlopspython_extraction-0.0.0-py3-none-any.whl
+fastapi==0.85.0
+fastapi-utils==0.2.1
+uvicorn==0.18.3
+python-multipart==0.0.6

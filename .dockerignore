@@ -1,0 +1,7 @@
+**/dist/
+**/build/
+**/tests/
+.github
+.idea
+
+MLOpsPython.iml

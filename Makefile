@@ -18,3 +18,5 @@ cd dist
 cp *.whl ../../../train/extraction/packages
 cp *.whl ../../../production/api/packages
 cd ../../../
+
+pip install -r production/api/requirements.txt

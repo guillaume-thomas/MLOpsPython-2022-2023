@@ -15,6 +15,13 @@ spec:
       containers:
         - name: mlops-api
           image: quay.io/gthomas59800/mlops_python_2023
+          env:
+            - name: OAUTH2_ISSUER
+              value: https://dev-57n2oiz6kv1zyfh6.eu.auth0.com/
+            - name: OAUTH2_AUDIENCE
+              value: https://gthomas-cats-dogs.com
+            - name: OAUTH2_JWKS_URI
+              value: .well-known/jwks.json
           ports:
             - containerPort: 8080
           resources:

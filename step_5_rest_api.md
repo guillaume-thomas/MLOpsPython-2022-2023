@@ -380,7 +380,165 @@ It is the end of this first course. Do not forget to shut down your uvicorn serv
 
 ## 2 - Security of our Webservice
 
-(...)
+### a - Why we should add Security to our Webservice ?
+
+Few arguments:
+- Insure to clients that their information are safe and confidentiality
+- Block reverse engineering
+- Allows a high level of Service Level Agreement / Quality of Service
+
+How a pirate should interfere in our client / server relationship ?
+
+![men in the middle](documentation/production/2%20-%20security/men%20in%20the%20middle.png)
+
+One first mandatory thing to do to insure security is to encrypt requests and results between clients and servers. One solution is to use the Transform
+Layer Security protocol. It gives us the ability to extend HTTP to HTTP**S**.
+
+*Demonstration with a web browser*
+
+We will not go further on this protocol because our Cloud providers insure us this capability. But there is a simple thing we can add to our application
+to maximize its security.
+
+### b - oAuth2
+
+We will use oAuth2. It is a security standard. Its goal is to delegate the security to an Authorization Server. It will allow clients to 
+authorize themselves and to insure to the server (our application is a Resource Server in this scenario) that these clients are allowed to do some actions.
+
+![simple oAuth2 principle](documentation/production/2%20-%20security/oauth2%20simple.png)
+
+The client will authenticate himself and ask to Authorization Server a specific scope for a specific application (our Resource Server). If the credentials
+of the client are correct, the Authorization Server will give him a token. This token is often time limited. The client has to give this token
+to our application. Our application check that this token is correct and not expired.
+
+### c - An example with Auth0
+
+We will create a free tenant on Auth0 from Okta to illustrate these principles.
+
+Create a free account on https://auth0.com/fr
+
+![insciption1](documentation/production/2%20-%20security/oAuth0/inscription.png)
 
 
+![insciption1](documentation/production/2%20-%20security/oAuth0/inscription2.png)
 
+
+![insciption1](documentation/production/2%20-%20security/oAuth0/inscription3.png)
+
+In this last step, please check the advanced option in order to create your tenant in the EU
+
+Now, our tenant is ready. We have to create a new API : 
+
+![create api](documentation/production/2%20-%20security/oAuth0/create%20api.png)
+
+![new api](documentation/production/2%20-%20security/oAuth0/new%20api.png)
+
+This API represents our ML Webservice. Now, we create a scope to add permissions to the clients of this api.
+
+![create scope](documentation/production/2%20-%20security/oAuth0/create%20scope.png)
+
+Now we have to create the application which will be the client of our API.
+
+![create applicatino](documentation/production/2%20-%20security/oAuth0/create%20application.png)
+
+To simplify this course, we will use the default application created by Auth0 for tests purposes. Note that it is not a good practice.
+
+Now we add the permissions to this application:
+
+![add permissions](documentation/production/2%20-%20security/oAuth0/add%20permission%20to%20application.png)
+
+Now we test it with postman !
+
+![test](documentation/production/2%20-%20security/oAuth0/test.png)
+
+*Now, let's see what we can find in a token with jwt.io (demo)*
+
+### d - Add security to our Webservice
+
+To ensure that our clients are using a correct oAuth2 token from our Auth0 tenant, we will use advanced features from FastAPI and an open source library.
+
+First, we add a new dependency in the requirements.txt of our api: 
+
+```
+oidc-jwt-validation==0.3.1
+```
+
+This module allows to validate easily the token. In fact, FastAPI gives us just token and made minor validation on it, like the expiration date. 
+We need to go deeper. For example, we have to validate the signature of the token, the audience and the issuer. 
+
+Now, we refresh our environment:
+
+```bash
+pip install -r production/api/requirements.txt
+```
+
+Now, we have to make some modifications on the index.py script in order to protect our /upload route:
+
+```python
+import io
+import logging
+import os # this line is new
+
+from fastapi import FastAPI, UploadFile, Depends # here, we add Depends
+from fastapi.security import OAuth2PasswordBearer # this line is new
+from mlopspython_inference.model_pillow import Model
+from oidc_jwt_validation.authentication import Authentication # this line is new
+from oidc_jwt_validation.http_service import ServiceGet # this line is new
+
+app = FastAPI()
+model = Model(logging, "./production/api/resources/final_model.h5")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token") # this scheme comes from FastAPI. It allows to check some token information and give the token to the function
+
+issuer = os.getenv("OAUTH2_ISSUER") # This is a value from an environment variable. It allows us to not hard code some information
+audience = os.getenv("OAUTH2_AUDIENCE") # this line is new
+jwks_uri = os.getenv("OAUTH2_JWKS_URI") # this line is new
+logger = logging.getLogger(__name__) # this line is new
+authentication = Authentication(logger, issuer, ServiceGet(logger), jwks_uri) # This object will check deeper the validity of the token
+skip_oidc = False # this boolean will be used for tests purproses. By default and in production, it will be always False
+
+
+@app.get("/health") # Note that this line does not change. It will not be protected
+def health():
+    return {"status": "OK"}
+
+
+@app.post("/upload")
+async def upload(file: UploadFile, token: str = Depends(oauth2_scheme)): # Take a look at this new token argument
+    if not skip_oidc:
+        await authentication.validate_async(token, audience, "get::prediction") # This function will validate the token
+    file_readed = await file.read()
+    file_bytes = io.BytesIO(file_readed)
+    return model.execute(file_bytes)
+
+```
+
+To test this new code, you need first to add these three environment variables:
+- **OAUTH2_ISSUER**: The issuer is the Authorization Server
+- **OAUTH2_AUDIENCE**: The audience is the identifier of the API created in Auth0 earlier
+- **OAUTH2_JWKS_URI**: This URI allows to get the public keys used to cipher the signature of the token (with Auth0, this value is .well-known/jwks.json. Just have a look of it)
+
+To do so, you can use the linux command 'export'
+
+Now you can boot your application, generate a new token from Auth0 with Postman and then, try to predict a cat from Postman.
+
+It is not finish. Now you have to fix your unit tests. In fact, because we protect our /upload route, our tests do not work anymore.
+
+So, to fix them, add these lines to your test_index.py script: 
+
+```python
+def skip_oauth():
+    return {}
+
+
+index.skip_oidc = True
+index.app.dependency_overrides[index.oauth2_scheme] = skip_oauth
+```
+
+This code will mock the oAuth2 feature from your index.py script.
+You can add it just before this:
+
+```python
+client = TestClient(index.app)
+```
+
+Now this chapter is finished. Please do not forget to terminate your Codespaces environment.

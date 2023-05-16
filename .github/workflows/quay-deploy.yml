@@ -1,0 +1,26 @@
+name: MLOps 2022/2023 Docker Images CI
+on:
+  push:
+    branches: [ "api_github_action" ]
+jobs:
+  build_api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v2
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER }}
+          password: ${{ secrets.QUAY_PWD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags:  quay.io/kilian_debraux/mlops_python:1.0.0,quay.io/kilian_debraux/mlops_python:latest

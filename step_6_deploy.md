@@ -6,6 +6,7 @@
 
 Why deploy our model in production? Why deploy it on the Cloud?
 
+
 Deploying our service in production means making our application available to as many people as possible by
 ensuring our customers a technical environment that is:
 
@@ -510,6 +511,7 @@ And now, you should see a github action in action !!!
 ![github action](documentation/production/3%20-%20containers/quay/github%20action%20in%20action.png)
 
 This chapter comes to its end! Now we will deploy this image in the Cloud!!!
+
 
 ## 4 - Orchestrate our containers with Kubernetes
 
